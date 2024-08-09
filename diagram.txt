@@ -1,0 +1,20 @@
+                5V
+                 |
+                 |
+               [Sounder]
+                 |
+                 |
+                 +-----> Drain (D) of RFD3055LE
+                           |
+                           |
+                          Source (S)
+                           |
+                          GND
+                           |
+                         -----
+                           |
+        GPIO Pin ----[220Ω Resistor]----> Gate (G)
+                           |
+                       [10kΩ Resistor]
+                           |
+                          GND
