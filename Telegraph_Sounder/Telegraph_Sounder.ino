@@ -79,12 +79,12 @@ const char* morse_code[46] = {
 // Baud Rate
 #define baud_rate 115200
 
-// Buffer size for incoming string
+// Define a buffer size for the incoming string
 #define BUFFER_SIZE 1000
 
-// Buffer to hold incoming data
-char receivedString[BUFFER_SIZE];
-int bufferIndex = 0;
+char receivedString[BUFFER_SIZE];  // Buffer to store the incoming string
+int bufferIndex = 0;               // Index for the buffer
+char* savedString = NULL;          // Pointer to hold the dynamically allocated string
 
 //////////////////////////////////////////////////////////////
 //                           Setup
@@ -105,8 +105,17 @@ void setup() {
 //                           Main Code
 //////////////////////////////////////////////////////////////
 
+// Function to convert to uppercase (if needed)
+char toUpperCase(char c) {
+  if (c >= 'a' && c <= 'z') {
+    return c - 32;
+  }
+  return c;
+}
+
 // Function to get the Morse code for a given character
 const char* get_morse_code(char c) {
+    c = toUpperCase(c); // Ensure the character is uppercase
     if (c >= 'A' && c <= 'Z') {
         return morse_code[c - 'A'];
     } else if (c >= '0' && c <= '9') {
@@ -152,6 +161,7 @@ void print_string(char* str) {
   while(str[idx] != '\0') {
     // checking if space
     if (str[idx] == ' ') {
+      Serial.println("Word Space Detected");
       digitalWrite(telegraph_pin, LOW);
       delay(AVERAGE_DOT * 1000 * WORD_DELAY);
       idx++;
@@ -160,12 +170,25 @@ void print_string(char* str) {
 
     // For non-space characters
     morse_code_str = get_morse_code(str[idx]);  // Get Morse code for current character
+
+    // Debug output
+    Serial.print("Processing Character: ");
+    Serial.println(str[idx]);
+
+    // Check if the Morse code is valid (non-empty string)
+    if (morse_code_str[0] == '\0') {
+      Serial.print("Unsupported Character: ");
+      Serial.println(str[idx]);
+      idx++;
+      continue;
+    }
+
     int morse_idx = 0;
-    
     while(morse_code_str[morse_idx] != '\0') {
       print_digit(morse_code_str[morse_idx]);
       morse_idx++;
     }
+
     // adding space between letters
     delay(AVERAGE_DOT * 1000 * LETTER_DELAY);
 
@@ -182,36 +205,52 @@ void error_handler(int error) {
 //////////////////////////////////////////////////////////////
 //                           Loop
 //////////////////////////////////////////////////////////////
-
 void loop() {
-  // Main code here, runs repeatedly
-  char* testing = "SOS";
-  print_string(testing);
-  delay(1000);
+  // Call the function to update the received string
+  delay(10);
+  updateReceivedString();
+
+  // If we have a new string, do something with it
+  if (savedString != NULL) {
+    Serial.print("Saved String: ");
+    Serial.println(savedString);
+    print_string(savedString);
+    // Free the allocated memory after processing
+    free(savedString);
+    savedString = NULL;  // Reset the pointer after freeing memory
+  }
 }
-// void loop() {
-//   // Check if data is available to read
-//   if (Serial.available() > 0) {
-//     // Read the incoming byte
-//     char incomingByte = Serial.read();
 
-//     // Check for end of line character (e.g., newline '\n')
-//     if (incomingByte == '\n' || bufferIndex >= BUFFER_SIZE - 1) {
-//       // Null-terminate the string
-//       receivedString[bufferIndex] = '\0';
+// Function to update the received string
+void updateReceivedString() {
+  // Check if data is available to read
+  while (Serial.available() > 0) {
+    // Read the incoming byte
+    char incomingByte = Serial.read();
 
-//       // Echo the received string back to the sender
-//       Serial.print("Received: ");
-//       Serial.println(receivedString);
+    // Check for end of line character (e.g., newline '\n')
+    if (incomingByte == '\n' || bufferIndex >= BUFFER_SIZE - 1) {
+      // Null-terminate the string
+      receivedString[bufferIndex] = '\0';
 
-//       //printing message:
-//       print_string(receivedString);
-//       // Clear the buffer for the next message
-//       memset(receivedString, 0, BUFFER_SIZE);
-//       bufferIndex = 0; // Reset the index
-//     } else {
-//       // Add the incoming byte to the buffer
-//       receivedString[bufferIndex++] = incomingByte;
-//     }
-//   }
-// }
+      // Allocate memory for the received string
+      if (savedString != NULL) {
+        free(savedString);  // Free the previous string if it exists
+      }
+      
+      savedString = (char*)malloc(strlen(receivedString) + 1);
+      if (savedString != NULL) {
+        strcpy(savedString, receivedString);  // Copy the received string into the allocated memory
+      } else {
+        Serial.println("Failed to allocate memory!");
+      }
+
+      // Reset the buffer for the next message
+      memset(receivedString, 0, BUFFER_SIZE);
+      bufferIndex = 0;  // Reset the index
+    } else {
+      // Add the incoming byte to the buffer
+      receivedString[bufferIndex++] = incomingByte;
+    }
+  }
+}
